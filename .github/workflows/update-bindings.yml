@@ -1,0 +1,66 @@
+name: Update PSPSDK Bindings
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run at midnight UTC every day
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-bindings:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install gitpython
+          
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+      - name: Download generator script
+        run: |
+          curl -o generate.py https://raw.githubusercontent.com/zPSP-Dev/libzpsp-gen/refs/heads/main/generate.py
+          
+      - name: Clone libzpsp repository
+        uses: actions/checkout@v4
+        with:
+          repository: zPSP-Dev/libzpsp
+          token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
+          path: libzpsp
+          
+      - name: Generate bindings
+        run: |
+          cp generate.py libzpsp/
+          cd libzpsp
+          python generate.py
+        
+      - name: Check for changes
+        id: check_changes
+        run: |
+          cd libzpsp
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Commit and push if changed
+        if: steps.check_changes.outputs.changes
+        run: |
+          cd libzpsp
+          git add src/pspsdk.zig src/libzpsp.zig
+          git commit -m "chore: update PSPSDK bindings [skip ci]"
+          git push origin main
+          
+      - name: Skip if no changes
+        if: steps.check_changes.outputs.changes == 'false'
+        run: echo "No changes to commit" 
