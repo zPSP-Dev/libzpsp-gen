@@ -488,7 +488,20 @@ def generate_zig_file(modules: Dict[str, Module], output_path: str):
             f.write(f'        asm(macro.import_module_start("{module.name}", "{module.data_tag}", "{len(module.functions)}"));\n')
             # Add function declarations
             for func in module.functions:
-                f.write(f'        asm(macro.import_function("{module.name}", "{func.nid}", "{func.name}"));\n')
+                if func.signature:
+                    # Count the number of arguments by counting commas in the parameters
+                    params = func.signature.split('(')[1].split(')')[0]
+                    arg_count = params.count(',') + 1 if params and params != '...' else 0
+                    if arg_count > 4:
+                        # For functions with more than 4 arguments, create _stub and wrapper
+                        f.write(f'        asm(macro.import_function("{module.name}", "{func.nid}", "{func.name}_stub"));\n')
+                        f.write(f'        asm(macro.generic_abi_wrapper("{func.name}", {arg_count}));\n')
+                    else:
+                        # For functions with 4 or fewer arguments, just import normally
+                        f.write(f'        asm(macro.import_function("{module.name}", "{func.nid}", "{func.name}"));\n')
+                else:
+                    # If no signature, assume no arguments and import normally
+                    f.write(f'        asm(macro.import_function("{module.name}", "{func.nid}", "{func.name}"));\n')
             f.write('    }\n\n')
         
         f.write('}\n')
