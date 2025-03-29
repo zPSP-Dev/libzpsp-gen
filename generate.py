@@ -484,7 +484,7 @@ def generate_zig_file(modules: Dict[str, Module], output_path: str):
         
         # Write module declarations
         for module in modules.values():
-            f.write(f'    if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "include_{module.name}") and options.include_{module.name})) {{\n')
+            f.write(f'    if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "{module.name}") and options.{module.name})) {{\n')
             f.write(f'        asm(macro.import_module_start("{module.name}", "{module.data_tag}", "{len(module.functions)}"));\n')
             # Add function declarations
             for func in module.functions:
@@ -606,7 +606,7 @@ def generate_pspsdk_file(modules: Dict[str, Module], output_path: str):
             f.write('};\n\n')
             
             # Write usingnamespace declaration
-            f.write(f'pub usingnamespace if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "include_{module.name}") and options.include_{module.name})) {module.name} else EMPTY;\n\n')
+            f.write(f'pub usingnamespace if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "{module.name}") and options.{module.name})) {module.name} else EMPTY;\n\n')
 
 def generate_options_file(modules: Dict[str, Module], output_path: str):
     """Generate the options.zig file containing build options for each module."""
