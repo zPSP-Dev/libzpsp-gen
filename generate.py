@@ -615,17 +615,26 @@ def generate_options_file(modules: Dict[str, Module], output_path: str):
     with open(output_path, 'w') as f:
         # Write header
         f.write('const std = @import("std");\n\n')
-        f.write('pub fn addOptions(b: *std.Build) *std.Build.Options {\n')
-        f.write('    const options = b.addOptions();\n\n')
+        
+        # Write the options struct
+        f.write('pub const Options = struct {\n')
+        f.write('    everything: bool = false,\n')
+        for module in modules.values():
+            f.write(f'    {module.name}: bool = false,\n')
+        f.write('};\n\n')
+        
+        # Write the addOptions function
+        f.write('pub fn addOptions(b: *std.Build, options: Options) *std.Build.Step.Options {\n')
+        f.write('    const step_options = b.addOptions();\n\n')
         
         # Add "everything" option
-        f.write('    options.addOption(bool, "everything", b.option(bool, "everything", "Enable all PSP libraries") orelse false);\n\n')
+        f.write('    step_options.addOption(bool, "everything", options.everything);\n\n')
         
         # Add options for each module
         for module in modules.values():
-            f.write(f'    options.addOption(bool, "{module.name}", b.option(bool, "{module.name}", "Enable {module.name} library") orelse false);\n')
+            f.write(f'    step_options.addOption(bool, "{module.name}", options.{module.name});\n')
         
-        f.write('\n    return options;\n')
+        f.write('\n    return step_options;\n')
         f.write('}\n')
 
 def main():
