@@ -608,6 +608,26 @@ def generate_pspsdk_file(modules: Dict[str, Module], output_path: str):
             # Write usingnamespace declaration
             f.write(f'pub usingnamespace if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "include_{module.name}") and options.include_{module.name})) {module.name} else EMPTY;\n\n')
 
+def generate_options_file(modules: Dict[str, Module], output_path: str):
+    """Generate the options.zig file containing build options for each module."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    with open(output_path, 'w') as f:
+        # Write header
+        f.write('const std = @import("std");\n\n')
+        f.write('pub fn addOptions(b: *std.Build) *std.Build.Options {\n')
+        f.write('    const options = b.addOptions();\n\n')
+        
+        # Add "everything" option
+        f.write('    options.addOption(bool, "everything", b.option(bool, "everything", "Enable all PSP libraries") orelse false);\n\n')
+        
+        # Add options for each module
+        for module in modules.values():
+            f.write(f'    options.addOption(bool, "{module.name}", b.option(bool, "{module.name}", "Enable {module.name} library") orelse false);\n')
+        
+        f.write('\n    return options;\n')
+        f.write('}\n')
+
 def main():
     parser = argparse.ArgumentParser(description='Generate Zig bindings for PSPSDK')
     parser.add_argument('--repo-url', default='https://github.com/pspdev/pspsdk.git',
@@ -649,6 +669,7 @@ def main():
         print(f"\nGenerating Zig files in {args.output_dir}...")
         generate_zig_file(modules, os.path.join(args.output_dir, 'libzpsp.zig'))
         generate_pspsdk_file(modules, os.path.join(args.output_dir, 'pspsdk.zig'))
+        generate_options_file(modules, os.path.join(args.output_dir, 'options.zig'))
         print("Done!")
 
 if __name__ == "__main__":

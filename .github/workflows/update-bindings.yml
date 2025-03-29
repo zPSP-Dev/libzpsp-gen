@@ -58,7 +58,7 @@ jobs:
         if: steps.check_changes.outputs.changes == 'true'
         run: |
           cd libzpsp
-          git add src/pspsdk.zig src/libzpsp.zig
+          git add src/pspsdk.zig src/libzpsp.zig src/options.zig
           git commit -m "chore: update PSPSDK bindings [skip ci]"
           git push origin main
           
