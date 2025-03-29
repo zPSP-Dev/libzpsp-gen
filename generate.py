@@ -650,7 +650,7 @@ def main():
     # Configuration
     target_dir = "pspsdk"
     bad_folders = ["src/samples", "src/base", "src/debug", "src/sdk", 
-                   "src/kernel", "src/vsh", "src/modinfo", "src/fpu", "tools"]
+                   "src/kernel", "src/vsh", "src/modinfo", "src/fpu", "src/video", "src/sircs", "tools"]
     bad_files = ["sceUmd.S"]
 
     with temporary_directory(target_dir):
