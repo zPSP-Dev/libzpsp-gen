@@ -63,7 +63,7 @@ def remove_driver_files(base_dir: str):
         for file in files:
             if '_driver' in file:
                 os.remove(os.path.join(root, file))
-        
+
         # Remove directories containing '_driver'
         for dir_name in dirs:
             if '_driver' in dir_name:
@@ -108,6 +108,14 @@ def parse_c_type_to_zig(c_type: str) -> str:
         'int8_t': 'i8',
         'uint16_t': 'u16',
         'int16_t': 'i16',
+        'u64': 'u64',
+        'u32': 'u32',
+        'u16': 'u16',
+        'u8': 'u8',
+        'i64': 'i64',
+        'i32': 'i32',
+        'i16': 'i16',
+        'i8': 'i8',
         # PSP-specific types
         'SceUID': 'SceUID',
         'SceSize': 'SceSize',
@@ -135,7 +143,7 @@ def parse_c_type_to_zig(c_type: str) -> str:
         'SceVoid': 'SceVoid',
         'ScePVoid': 'ScePVoid',
     }
-    
+
     # Handle const first
     is_const = 'const' in c_type
     if is_const:
@@ -148,7 +156,7 @@ def parse_c_type_to_zig(c_type: str) -> str:
             # For pointer types, const goes before the pointer
             return result.replace('[*c]', '[*c]const ')
         return result
-    
+
     # Handle pointers
     if '*' in c_type:
         base_type = c_type.replace('*', '').strip()
@@ -156,7 +164,7 @@ def parse_c_type_to_zig(c_type: str) -> str:
         if base_type == 'void':
             return '?*anyopaque'
         return f'[*c]{parse_c_type_to_zig(base_type)}'
-    
+
     # Handle basic types
     return type_map.get(c_type, 'c_int')  # Default to c_int if unknown
 
@@ -166,7 +174,7 @@ def parse_c_function_signature(line: str) -> Optional[Tuple[str, List[Tuple[str,
     line = re.sub(r'/\*.*?\*/', '', line, flags=re.DOTALL)  # Remove multi-line comments
     line = re.sub(r'//.*$', '', line)  # Remove single-line comments
     line = line.strip()
-    
+
     # Split into words while preserving * as part of the type
     words = []
     current_word = ''
@@ -194,7 +202,7 @@ def parse_c_function_signature(line: str) -> Optional[Tuple[str, List[Tuple[str,
             current_word += char
     if current_word:
         words.append(current_word)
-    
+
     # Find the function name (it's the last word before the opening parenthesis)
     func_name = None
     for i, word in enumerate(words):
@@ -202,18 +210,18 @@ def parse_c_function_signature(line: str) -> Optional[Tuple[str, List[Tuple[str,
             if i > 0:
                 func_name = words[i-1]
             break
-    
+
     if not func_name:
         return None
-    
+
     # Get the return type (everything before the function name)
     return_type = ' '.join(words[:words.index(func_name)])
-    
+
     # Get the parameters (everything between the parentheses)
     params_start = words.index('(')
     params_end = words.index(')')
     params = ' '.join(words[params_start+1:params_end])
-    
+
     # Parse parameters
     param_types_and_names = []
     if params.strip() and params.strip() != 'void':
@@ -223,7 +231,7 @@ def parse_c_function_signature(line: str) -> Optional[Tuple[str, List[Tuple[str,
                 # Skip invalid parameters like '?'
                 if param == '?':
                     return None
-                
+
                 # Split into words while preserving * as part of the type
                 words = []
                 current_word = ''
@@ -247,14 +255,14 @@ def parse_c_function_signature(line: str) -> Optional[Tuple[str, List[Tuple[str,
                         current_word += char
                 if current_word:
                     words.append(current_word)
-                
+
                 # Find the last word that's not a type keyword or modifier
                 name = None
                 for word in reversed(words):
                     if word not in ['const', 'struct', 'volatile', 'restrict', '*', ':']:
                         name = word
                         break
-                
+
                 if name:
                     # Get all words up to but not including the name
                     type_words = []
@@ -264,22 +272,22 @@ def parse_c_function_signature(line: str) -> Optional[Tuple[str, List[Tuple[str,
                             found_name = True
                         elif not found_name:
                             type_words.append(word)
-                    
+
                     param_type = ' '.join(type_words)
                     param_types_and_names.append((param_type, name))
                 else:
                     param_types_and_names.append((param, f"arg{len(param_types_and_names)}"))
-    
+
     return return_type, param_types_and_names, func_name
 
 def parse_doc_comment(lines: List[str]) -> Optional[str]:
     """Parse C doc comment and convert to Zig format."""
     if not lines:
         return None
-        
+
     # Remove the /** and */ lines
     lines = lines[1:-1]
-    
+
     # Process each line
     processed_lines = []
     for i, line in enumerate(lines):
@@ -291,7 +299,7 @@ def parse_doc_comment(lines: List[str]) -> Optional[str]:
         # Skip empty lines or lines that are just slashes
         if not line or line in ['/', '/**']:
             continue
-            
+
         # Handle @code blocks
         if line.startswith('@code'):
             processed_lines.append('`')
@@ -299,7 +307,7 @@ def parse_doc_comment(lines: List[str]) -> Optional[str]:
         if line.startswith('@endcode'):
             processed_lines.append('`')
             continue
-            
+
         # Handle @param
         if line.startswith('@param'):
             param = line[6:].strip()
@@ -311,16 +319,16 @@ def parse_doc_comment(lines: List[str]) -> Optional[str]:
             else:
                 processed_lines.append(f"`{param}`")
             continue
-            
+
         # Handle @return
         if line.startswith('@return'):
             ret = line[7:].strip()
             processed_lines.append(f"Returns {ret}")
             continue
-            
+
         # Regular line
         processed_lines.append(line)
-    
+
     # Join with /// prefix, adding indentation for all lines except the first
     return '\n'.join(f"/// {line}" if i == 0 else f"    /// {line}" for i, line in enumerate(processed_lines))
 
@@ -338,7 +346,7 @@ def find_function_signature(headers_dir: str, func_name: str) -> Optional[Tuple[
                         doc_lines = []
                         in_comment = False
                         function_lines = []
-                        
+
                         for i, line in enumerate(lines):
                             # Handle multi-line comments
                             if '/*' in line:
@@ -349,11 +357,11 @@ def find_function_signature(headers_dir: str, func_name: str) -> Optional[Tuple[
                                 continue
                             if in_comment:
                                 continue
-                                
+
                             # Skip single-line comments
                             if line.strip().startswith('//'):
                                 continue
-                                
+
                             # If we find the function name, start collecting lines
                             if func_name in line and '(' in line:
                                 function_lines = [line]
@@ -364,7 +372,7 @@ def find_function_signature(headers_dir: str, func_name: str) -> Optional[Tuple[
                                     j -= 1
                                 if j >= 0 and lines[j].strip() == '/**':
                                     doc_lines.insert(0, lines[j].strip())
-                                
+
                                 # If the function declaration spans multiple lines, collect them
                                 if '(' in line and ')' not in line:
                                     k = i + 1
@@ -374,13 +382,13 @@ def find_function_signature(headers_dir: str, func_name: str) -> Optional[Tuple[
                                         k += 1
                                     if k < len(lines):
                                         function_lines.append(lines[k])
-                                
+
                                 # Join the function lines and parse
                                 full_declaration = ' '.join(line.strip() for line in function_lines)
                                 sig = parse_c_function_signature(full_declaration)
                                 if sig and sig[2] == func_name:
                                     return_type, param_types_and_names, _ = sig
-                                    
+
                                     # Convert to Zig signature
                                     zig_return = parse_c_type_to_zig(return_type)
                                     if param_types_and_names:
@@ -394,7 +402,7 @@ def find_function_signature(headers_dir: str, func_name: str) -> Optional[Tuple[
                                             signature = f"({', '.join(zig_params)}) {zig_return}"
                                     else:
                                         signature = f"() {zig_return}"
-                                    
+
                                     # Parse doc comment if present
                                     doc_comment = parse_doc_comment(doc_lines) if doc_lines else None
                                     return signature, doc_comment
@@ -406,25 +414,25 @@ def find_function_signature(headers_dir: str, func_name: str) -> Optional[Tuple[
 def process_s_files(base_dir: str, verbose: bool = False) -> Dict[str, Module]:
     """Process .S files and build module structure."""
     modules: Dict[str, Module] = {}
-    
+
     for root, _, files in os.walk(base_dir):
         for file in files:
             if file.endswith('.S'):
                 file_path = os.path.join(root, file)
                 current_module = None
                 import_start_count = 0
-                
+
                 try:
                     with open(file_path, 'r') as f:
                         for line_num, line in enumerate(f, 1):
                             line = line.strip()
-                            
+
                             # Check for IMPORT_START
                             if 'IMPORT_START' in line:
                                 import_start_count += 1
                                 if import_start_count > 1:
                                     raise ValueError(f"Multiple IMPORT_START found in {file_path}")
-                                
+
                                 result = parse_import_start(line)
                                 if result:
                                     module_name, data_tag = result
@@ -437,7 +445,7 @@ def process_s_files(base_dir: str, verbose: bool = False) -> Dict[str, Module]:
                                     current_module = module_name
                                 else:
                                     raise ValueError(f"Invalid IMPORT_START format in {file_path}:{line_num}")
-                            
+
                             # Check for IMPORT_FUNC
                             elif 'IMPORT_FUNC' in line and current_module:
                                 result = parse_import_func(line)
@@ -448,40 +456,40 @@ def process_s_files(base_dir: str, verbose: bool = False) -> Dict[str, Module]:
                                     modules[current_module].functions.append(ImportFunc(nid, func_name))
                                 else:
                                     raise ValueError(f"Invalid IMPORT_FUNC format in {file_path}:{line_num}")
-                
+
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
                     continue
-    
+
     # Find function signatures in header files
     for module in modules.values():
         for func in module.functions:
             result = find_function_signature(base_dir, func.name)
             if result:
                 func.signature, func.doc_comment = result
-    
+
     if verbose:
         print("\nModule Diagnostic Information:")
         print("=" * 50)
         for module in modules.values():
             print(module)
             print("-" * 50)
-    
+
     return modules
 
 def generate_zig_file(modules: Dict[str, Module], output_path: str):
     """Generate the Zig source file from the module data."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     with open(output_path, 'w') as f:
         # Write header
         f.write('const macro = @import("pspmacros.zig");\n')
         f.write('const options = @import("libzpsp_option");\n\n')
-        
+
         # Write comptime block
         f.write('comptime {\n')
         f.write('    @setEvalBranchQuota(1000000);\n\n')
-        
+
         # Write module declarations
         for module in modules.values():
             f.write(f'    if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "{module.name}") and options.{module.name})) {{\n')
@@ -503,18 +511,18 @@ def generate_zig_file(modules: Dict[str, Module], output_path: str):
                     # If no signature, assume no arguments and import normally
                     f.write(f'        asm(macro.import_function("{module.name}", "{func.nid}", "{func.name}"));\n')
             f.write('    }\n\n')
-        
+
         f.write('}\n')
 
 def generate_pspsdk_file(modules: Dict[str, Module], output_path: str):
     """Generate the Zig source file containing extern function declarations."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     with open(output_path, 'w') as f:
         # Write header
         f.write('const options = @import("libzpsp_option");\n')
         f.write('const types = @import("psptypes.zig");\n\n')
-        
+
         # Write PSP type definitions
         f.write('pub const SceUID = types.SceUID;\n')
         f.write('pub const SceSize = types.SceSize;\n')
@@ -541,7 +549,7 @@ def generate_pspsdk_file(modules: Dict[str, Module], output_path: str):
         f.write('pub const SceBool = types.SceBool;\n')
         f.write('pub const SceVoid = types.SceVoid;\n')
         f.write('pub const ScePVoid = types.ScePVoid;\n\n')
-        
+
         # Write PSP-specific types
         f.write('pub const ScePspSRect = types.ScePspSRect;\n')
         f.write('pub const ScePspIRect = types.ScePspIRect;\n')
@@ -586,10 +594,10 @@ def generate_pspsdk_file(modules: Dict[str, Module], output_path: str):
         f.write('pub const ScePspUnion64 = types.ScePspUnion64;\n')
         f.write('pub const ScePspUnion128 = types.ScePspUnion128;\n')
         f.write('pub const ScePspDateTime = types.ScePspDateTime;\n\n')
-        
+
         # Write EMPTY struct definition
         f.write('const EMPTY = struct {};\n\n')
-        
+
         # Write module declarations
         for module in modules.values():
             # Write module externs struct
@@ -604,36 +612,36 @@ def generate_pspsdk_file(modules: Dict[str, Module], output_path: str):
                 else:
                     f.write(f'    pub extern fn {func.name}() callconv(.C) void;\n\n')
             f.write('};\n\n')
-            
+
             # Write usingnamespace declaration
             f.write(f'pub usingnamespace if ((@hasDecl(options, "everything") and options.everything) or (@hasDecl(options, "{module.name}") and options.{module.name})) {module.name} else EMPTY;\n\n')
 
 def generate_options_file(modules: Dict[str, Module], output_path: str):
     """Generate the options.zig file containing build options for each module."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     with open(output_path, 'w') as f:
         # Write header
         f.write('const std = @import("std");\n\n')
-        
+
         # Write the options struct
         f.write('pub const Options = struct {\n')
         f.write('    everything: bool = false,\n')
         for module in modules.values():
             f.write(f'    {module.name}: bool = false,\n')
         f.write('};\n\n')
-        
+
         # Write the addOptions function
         f.write('pub fn addOptions(b: *std.Build, options: Options) *std.Build.Step.Options {\n')
         f.write('    const step_options = b.addOptions();\n\n')
-        
+
         # Add "everything" option
         f.write('    step_options.addOption(bool, "everything", options.everything);\n\n')
-        
+
         # Add options for each module
         for module in modules.values():
             f.write(f'    step_options.addOption(bool, "{module.name}", options.{module.name});\n')
-        
+
         f.write('\n    return step_options;\n')
         f.write('}\n')
 
@@ -649,7 +657,7 @@ def main():
 
     # Configuration
     target_dir = "pspsdk"
-    bad_folders = ["src/samples", "src/base", "src/debug", "src/sdk", 
+    bad_folders = ["src/samples", "src/base", "src/debug", "src/sdk",
                    "src/kernel", "src/vsh", "src/modinfo", "src/fpu", "src/video", "src/sircs", "tools"]
     bad_files = ["sceUmd.S"]
 
